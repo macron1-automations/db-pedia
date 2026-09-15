@@ -249,6 +249,40 @@ English labels come back directly (no `FILTER(LANG(...))` needed) because
 non-English literals were dropped at index time. Wikidata labels whose value is
 language-independent are stored under `@mul`; those are kept too.
 
+## Using the brief-enrichment skill
+
+This repo ships an opencode skill (`.opencode/skills/wikidata-brief-enrich/SKILL.md`)
+that turns the endpoint above into an entity-extraction + triple-retrieval
+workflow for free-text documents:
+
+- **Trigger**: paste any briefing, news article, or report and ask to "extract
+  entities", "retrieve triples", or "enrich this brief". The skill also fires on
+  keywords like `wikidata`, `entity resolution`, `enrich this report`.
+- **What it does**: resolves each named entity to a Wikidata QID via
+  `rdfs:label` + `wdt:P31` disambiguation, retrieves relevant outbound triples
+  (capitals, membership, heads of state, founders, inception dates, listings,
+  …) plus key inbound sets (member rosters, conflict participants, basin
+  countries), and emits the original text verbatim with `QID`-tagged mentions
+  and `▸ Wikidata grounding:` lines under each claim.
+- **Requirement**: the server must be running (`bash server.sh status` — expect
+  the `qlever.server.wikidata-truthy` container to be `Up`), otherwise the
+  subagent's queries will fail. Verify with the count query from the
+  [Data semantics](#data-semantics) section.
+- **Architecture**: extraction is delegated to a `general` subagent so the main
+  session context stays lean; the subagent returns a compact payload
+  (entities / outbound / inbound / bridging notes) that the main agent formats.
+- **Data-driven by design**: no hardcoded per-brief QID lookup tables — the
+  skill encodes *resolution principles* (label ≠ alias, events vs persistent
+  entities, multi-candidate tiebreak via `P571`/`P112`/`P159`/`P17`/`P414`,
+  `@en`/`@mul` dedupe) that recompute against the archive on every run.
+- **Caveats to expect**: aliases are not indexed (e.g. "China" resolves as
+  "People's Republic of China"), current/news events rarely resolve (look for
+  the persistent underlying entity instead), and oil benchmarks like "Brent
+  crude" map to their namesake field rather than a dedicated price entity.
+
+After editing the skill (or any config), restart opencode so it re-scans
+`.opencode/skills/`.
+
 ## Tuning notes
 
 Adjust for the machine in `server.sh` / `index.sh` / `Qleverfile`:
