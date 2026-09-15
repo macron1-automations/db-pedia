@@ -6,3 +6,8 @@
 # Editor / OS noise
 .DS_Store
 *.swp
+
+# .opencode internals (node_modules, package.json, etc.), keep all skills
+.opencode/*
+!.opencode/skills/
+!.opencode/skills/**
