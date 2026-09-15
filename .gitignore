@@ -1,0 +1,8 @@
+# QLever data directories (indexes, dumps, logs). Rebuilt from scratch via
+# the scripts documented in README.md.
+/olympics-test/
+/wikidata-truthy/
+
+# Editor / OS noise
+.DS_Store
+*.swp
