@@ -1,13 +1,52 @@
 # db-pedia
 
-Local read-only Wikidata **Truthy** SPARQL endpoint, English-only, built with
-[QLever](https://qlever.cs.uni-freiburg.de/) running in Docker on Omarchy
-(Arch-based Linux). All settings are tuned for this machine (23 GB RAM, 16
-cores, ~700 GB free disk).
+A local, read-only, **English-only** Wikidata **Truthy** SPARQL endpoint for
+personal OSINT work: it provides offline, verifiable knowledge grounding for
+[MacronX](https://github.com/macron1-automations/macronx) and its companion
+[wikidata-brief-enrich](https://github.com/macron1-automations/wikidata-brief-enrich)
+agent skill.
+
+Built with [QLever](https://qlever.cs.uni-freiburg.de/) running in Docker, it
+is designed for **modest, consumer-level hardware**: the English-only index,
+on-disk-compressed vocabulary, and external-memory build budget keep peak RAM
+low while indexing and serving queries — a small desktop or even a laptop can
+host it. Everything runs on localhost, so queries never leave the machine,
+matching the privacy-first, cheap-to-run ethos of the macronx OSINT stack.
 
 The Python `qlever` command-line tool is used to download the dump, build the
 index, and run the server via the `docker.io/adfreiburg/qlever:latest`
 container image.
+
+> The concrete numbers in this README (RAM, cores, timings, sizes) come from
+> the development machine that built this index. They are reference points,
+> not requirements — see [Tuning notes](#tuning-notes) for scaling down.
+
+## What this powers
+
+This endpoint is the knowledge substrate for the macronx OSINT pipeline:
+
+- **[macronx](https://github.com/macron1-automations/macronx)** — a personal
+  OSINT intake and analysis pipeline. Its [News Analysis](https://github.com/macron1-automations/macronx#news-analysis)
+  workflow (prompt: [prompts/news_analysis.md](https://github.com/macron1-automations/macronx/blob/main/prompts/news_analysis.md))
+  synthesizes daily feeds into an **Executive Intelligence Brief (EIB)** —
+  BLUF, cross-sector synthesis, sector SITREPs, and a watchlist.
+- **[wikidata-brief-enrich](https://github.com/macron1-automations/wikidata-brief-enrich)**
+  — an agent skill that turns that EIB into a referenceable artifact: it
+  resolves every named entity to a Wikidata QID and appends
+  `▸ Wikidata grounding:` triples beneath each claim.
+
+```
+news feeds ──▶ macronx ──▶ news_analysis (local LLM) ──▶ EIB
+                                                          │
+                                                          ▼
+                                            wikidata-brief-enrich ──▶ QID-tagged, triple-grounded brief
+                                                          ▲
+                                       SPARQL ── localhost:7001 ── this repo
+```
+
+The audience is individual OSINT analysts running macronx: anyone who wants
+their intelligence products checked against a private, always-available
+Wikidata archive instead of a public endpoint.
 
 ## Repository layout
 
@@ -23,19 +62,31 @@ Everything needed to recreate them is embedded below.
 
 ## Prerequisites
 
-- Docker (`omarchy pkg add docker`, daemon running)
+- Docker (any platform with a working daemon)
 - The `qlever` CLI (Python, installed via pipx)
-- ~300 GB free disk, and patience: download ~2-4 h, index ~1.5-2 h
+- ≈180 GB free disk, and patience: download ~2-4 h, index ~1.5-2 h
+  (≈43 GB compressed dump + ≈132 GB index). RAM-light by design — see
+  [Tuning notes](#tuning-notes) for budgets that scale to small hosts.
 
-### Install the `qlever` CLI (Omarchy)
+### Install the `qlever` CLI
+
+The steps are identical on any OS with Docker and Python. Install `pipx`
+directly, or via your package manager — e.g.:
 
 ```bash
-# refresh package DBs first if installs fail (a stale mirror DB is common)
-sudo pacman -Sy
-omarchy pkg add python-pipx
+# Debian / Ubuntu
+sudo apt install pipx
+# Arch-based Linux
+sudo pacman -S python-pipx
+# macOS
+brew install pipx
+```
 
+Then:
+
+```bash
 pipx install qlever
-export PATH="$HOME/.local/bin:$PATH"        # add to ~/.bashrc
+export PATH="$HOME/.local/bin:$PATH"        # add to your shell rc
 qlever --version                            # 0.6.0
 ```
 
@@ -88,7 +139,7 @@ mkdir -p wikidata-truthy && cd wikidata-truthy
 Write this `Qleverfile`:
 
 ```ini
-# Qleverfile for Wikidata Truthy, tuned for this machine (23 GB RAM, 16 cores)
+# Qleverfile for Wikidata Truthy, tuned for the reference machine (23 GB RAM, 16 cores)
 #
 # qlever get-data  # ~2-4 h, ~41 GB compressed
 # bash index.sh    # ~1.5-2 h, RAM-lean (STXXL 6G, on-disk vocab, external IRIs)
@@ -171,7 +222,7 @@ docker run --rm -u "$(id -u):$(id -g)" -v /etc/localtime:/etc/localtime:ro \
 Build it (stop the server first if it is running):
 
 ```bash
-bash index.sh    # ~1.5-2 h on this machine
+bash index.sh    # ~1.5-2 h on the reference machine
 # finishes with "Index build completed"; ~2.93B triples in the final index
 ```
 
@@ -253,7 +304,8 @@ language-independent are stored under `@mul`; those are kept too.
 
 This repo ships an opencode skill (`.opencode/skills/wikidata-brief-enrich/SKILL.md`)
 that turns the endpoint above into an entity-extraction + triple-retrieval
-workflow for free-text documents:
+workflow for free-text documents — the natural next step after the macronx
+News Analysis workflow has produced an EIB (see [What this powers](#what-this-powers)):
 
 - **Trigger**: paste any briefing, news article, or report and ask to "extract
   entities", "retrieve triples", or "enrich this brief". The skill also fires on
@@ -287,15 +339,31 @@ After editing the skill (or any config), restart opencode so it re-scans
 
 Adjust for the machine in `server.sh` / `index.sh` / `Qleverfile`:
 
-| Parameter                      | This machine | Meaning                                        |
-| ------------------------------ | ------------ | ---------------------------------------------- |
-| `lbzcat -n 4` / `-j 8`         | 4 / 8        | parallel decompress / server threads           |
-| `-m 8G` (MEMORY_FOR_QUERIES)   | 8G           | per-query memory (4G fails on 100M-row DISTINCT; 8G succeeds) |
-| `-c 3G` (CACHE_MAX_SIZE)       | 3G           | server cache                                   |
-| `STXXL_MEMORY`                 | 6G           | external-memory budget during indexing         |
-| `VOCABULARY_TYPE`              | on-disk-compressed | keeps RAM-lean indexing (~6 GB peak on 23 GB machine) |
+| Parameter                      | Reference | Meaning                                         |
+| ------------------------------ | --------- | ----------------------------------------------- |
+| `lbzcat -n 4` / `-j 8`         | 4 / 8     | parallel decompress / server threads            |
+| `-m 8G` (MEMORY_FOR_QUERIES)   | 8G        | per-query memory (4G fails on 100M-row DISTINCT; 8G succeeds) |
+| `-c 3G` (CACHE_MAX_SIZE)       | 3G        | server cache                                    |
+| `STXXL_MEMORY`                 | 6G        | external-memory budget during indexing          |
+| `VOCABULARY_TYPE`              | on-disk-compressed | keeps indexing RAM-lean (~6 GB peak on the reference machine) |
 
-Expected sizes (this machine):
+### Scaling down (low-end / laptop hosts)
+
+The defaults above come from the development machine. On a smaller host the
+biggest levers are per-query memory (`-m`), cache (`-c` / `-e`), and
+parallelism (`-j`, `lbzcat -n`). The archive itself (~132 GB) is the same
+either way — RAM and index speed are what scale:
+
+| Host budget                | `-m` query | `-c` / `-e` cache | `-j` / `lbzcat` | STXXL |
+| -------------------------- | ---------- | ----------------- | --------------- | ----- |
+| Reference (this README)    | 8G         | 3G / 1G           | 8 / 4           | 6G    |
+| 16 GB laptop / mini-PC     | 4G         | 2G / 512M         | 4 / 2           | 4G    |
+| 8 GB host (works, slowest) | 2G         | 1G / 256M         | 2 / 1           | 2G    |
+
+Keep `VOCABULARY_TYPE = on-disk-compressed` — it is what keeps indexing
+RAM-lean on small machines.
+
+Expected sizes (reference machine):
 
 | Metric                 | Full multilingual | English-only (this repo) |
 | ---------------------- | ----------------- | ------------------------ |
