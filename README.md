@@ -1,5 +1,7 @@
 # db-pedia
 
+![logo](logo.jpg)
+
 A local, read-only, **English-only** Wikidata **Truthy** SPARQL endpoint for
 personal OSINT work: it provides offline, verifiable knowledge grounding for
 [MacronX](https://github.com/macron1-automations/macronx) and its companion
@@ -232,6 +234,7 @@ bash index.sh    # ~1.5-2 h on the reference machine
 > container image's entrypoint requires `-w /data`, `qlever start` runs
 > docker-in-docker (no docker executable inside the container), and the entry
 > point's `usermod`/`groupmod` fail for UID 1000. Use `server.sh` below instead
+>
 > - it is exactly the command captured from `qlever start --show` and works
 > reliably.
 
@@ -391,3 +394,4 @@ top-to-bottom: install the CLI, run the olympics smoke test, then create
 run `bash index.sh` followed by `bash server.sh start`. The original dumps are
 kept on disk, so a multilingual rebuild is possible by removing the `awk`
 filter and re-adding the lexemes input.
+
