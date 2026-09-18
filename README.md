@@ -1,4 +1,4 @@
-# db-pedia
+# Local Wikidata
 
 ![logo](logo.jpeg)
 
@@ -394,4 +394,3 @@ top-to-bottom: install the CLI, run the olympics smoke test, then create
 run `bash index.sh` followed by `bash server.sh start`. The original dumps are
 kept on disk, so a multilingual rebuild is possible by removing the `awk`
 filter and re-adding the lexemes input.
-
