@@ -1,6 +1,6 @@
 # db-pedia
 
-![logo](logo.jpg)
+![logo](logo.jpeg)
 
 A local, read-only, **English-only** Wikidata **Truthy** SPARQL endpoint for
 personal OSINT work: it provides offline, verifiable knowledge grounding for
