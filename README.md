@@ -37,14 +37,7 @@ This endpoint is the knowledge substrate for the macronx OSINT pipeline:
   resolves every named entity to a Wikidata QID and appends
   `▸ Wikidata grounding:` triples beneath each claim.
 
-```
-news feeds ──▶ macronx ──▶ news_analysis (local LLM) ──▶ EIB
-                                                          │
-                                                          ▼
-                                            wikidata-brief-enrich ──▶ QID-tagged, triple-grounded brief
-                                                          ▲
-                                       SPARQL ── localhost:7001 ── this repo
-```
+![what it powers](powers.jpeg)
 
 The audience is individual OSINT analysts running macronx: anyone who wants
 their intelligence products checked against a private, always-available
@@ -305,38 +298,32 @@ language-independent are stored under `@mul`; those are kept too.
 
 ## Using the brief-enrichment skill
 
-This repo ships an opencode skill (`.opencode/skills/wikidata-brief-enrich/SKILL.md`)
-that turns the endpoint above into an entity-extraction + triple-retrieval
-workflow for free-text documents — the natural next step after the macronx
-News Analysis workflow has produced an EIB (see [What this powers](#what-this-powers)):
+The brief-enrichment agent skill — entity extraction + triple retrieval against
+this endpoint lives in this repository:
+[wikidata-brief-enrich](https://github.com/macron1-automations/wikidata-brief-enrich)
+(see [What this powers](#what-this-powers)).
 
-- **Trigger**: paste any briefing, news article, or report and ask to "extract
-  entities", "retrieve triples", or "enrich this brief". The skill also fires on
-  keywords like `wikidata`, `entity resolution`, `enrich this report`.
-- **What it does**: resolves each named entity to a Wikidata QID via
-  `rdfs:label` + `wdt:P31` disambiguation, retrieves relevant outbound triples
-  (capitals, membership, heads of state, founders, inception dates, listings,
-  …) plus key inbound sets (member rosters, conflict participants, basin
-  countries), and emits the original text verbatim with `QID`-tagged mentions
-  and `▸ Wikidata grounding:` lines under each claim.
-- **Requirement**: the server must be running (`bash server.sh status` — expect
-  the `qlever.server.wikidata-truthy` container to be `Up`), otherwise the
-  subagent's queries will fail. Verify with the count query from the
-  [Data semantics](#data-semantics) section.
-- **Architecture**: extraction is delegated to a `general` subagent so the main
-  session context stays lean; the subagent returns a compact payload
-  (entities / outbound / inbound / bridging notes) that the main agent formats.
-- **Data-driven by design**: no hardcoded per-brief QID lookup tables — the
-  skill encodes *resolution principles* (label ≠ alias, events vs persistent
-  entities, multi-candidate tiebreak via `P571`/`P112`/`P159`/`P17`/`P414`,
-  `@en`/`@mul` dedupe) that recompute against the archive on every run.
-- **Caveats to expect**: aliases are not indexed (e.g. "China" resolves as
-  "People's Republic of China"), current/news events rarely resolve (look for
-  the persistent underlying entity instead), and oil benchmarks like "Brent
-  crude" map to their namesake field rather than a dedicated price entity.
+Install it with:
 
-After editing the skill (or any config), restart opencode so it re-scans
-`.opencode/skills/`.
+```bash
+npx skills add macron1-automations/wikidata-brief-enrich -g
+```
+
+or clone the repo and point your coding agent's skills path at it. Once
+installed, paste any briefing, news article, or report and ask to "extract
+entities", "retrieve triples", or "enrich this brief". The skill resolves each
+named entity to a Wikidata QID via `rdfs:label` + `wdt:P31` disambiguation,
+retrieves relevant outbound and inbound triples, and emits the original text
+verbatim with `QID`-tagged mentions and `▸ Wikidata grounding:` lines under
+each claim.
+
+**Requirement**: this endpoint must be running (`bash server.sh status` — expect
+the `qlever.server.wikidata-truthy` container to be `Up`), otherwise the
+skill's queries will fail. Verify with the count query from the
+[Data semantics](#data-semantics) section.
+
+After updating the skill, restart your coding agent so it re-scans its skills
+directory.
 
 ## Tuning notes
 
