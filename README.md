@@ -37,14 +37,7 @@ This endpoint is the knowledge substrate for the macronx OSINT pipeline:
   resolves every named entity to a Wikidata QID and appends
   `▸ Wikidata grounding:` triples beneath each claim.
 
-```
-news feeds ──▶ macronx ──▶ news_analysis (local LLM) ──▶ EIB
-                                                          │
-                                                          ▼
-                                            wikidata-brief-enrich ──▶ QID-tagged, triple-grounded brief
-                                                          ▲
-                                       SPARQL ── localhost:7001 ── this repo
-```
+![what it powers](powers.jpeg)
 
 The audience is individual OSINT analysts running macronx: anyone who wants
 their intelligence products checked against a private, always-available
